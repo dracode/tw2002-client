@@ -15,3 +15,5 @@ Planet Scan -- both personal and corporate; lists some basic stats about planets
 <B>portPairs.py</B> will read the SQLite database and show you pairs of ports that are in adjacent sectors that Buy/Sell whatever commodity you want to trade.  Also will give you recommendations on how to get there in the most turn-efficient manner, if you have a transwarp drive.
 
 <B>smartProbe.py</B> will use the sector warp mapping data from the SQLite database to generate pathways for Ether Probes, with the goal of hitting as many Unexplored sectors as possible with each probe.  Visiting the sectors with a probe will then allow you to retrieve the port data, greatly expanding your trading options.
+
+<B>twpath.py</B> will use the data in the SQLite database to generate routes to/from: the nearest fighters; the nearest likely blind warps; the nearest port selling <X>.
