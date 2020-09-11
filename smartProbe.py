@@ -285,6 +285,10 @@ if(__name__ == '__main__'):
                 del candidates[sector]
         candidates = list(candidates)
 
+    if(len(args.start_sector) == 0):
+        print("No start sectors specified, exiting.")
+        quit()
+
     routes = []
     for source in args.start_sector:
         routes += mapping_algo(source, candidates, avoids=args.avoid)

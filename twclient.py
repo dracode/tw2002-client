@@ -144,6 +144,12 @@ def do_ztm(tn):
         cmd = 'F{}\r\n{}\r\n'.format(x-1, x)
         tn.write(cmd.encode('utf-8'))
     tn.write(b'Q')
+
+def do_update(tn):
+    tn.write(b'QQQQQQQQN^')
+    tn.write(b'IRQ')
+    tn.write(b'G')
+    tn.write(b'CYQ')
     
 def user_command(tn):
     global settings
@@ -163,6 +169,8 @@ def user_command(tn):
             print("VERBOSE LEVEL CHANGED: {}".format(twparser.verbose), flush=True)
         if(userData == b'z' or userData == b'Z'):
             threading.Thread(target=do_ztm, args=(tn,)).start()
+        if(userData == b'u' or userData == b'U'):
+            threading.Thread(target=do_update, args=(tn,)).start()
         break
 
         
