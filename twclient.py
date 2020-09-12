@@ -15,10 +15,7 @@ from contextlib import contextmanager
 
 import twparser
 
-settings = {}
-settings['mute'] = False
-settings['max_sector'] = 1000
-settings['auto_haggle'] = False
+settings = None
 
 DEFAULT_DB_NAME = 'tw2002.db'
 
@@ -179,6 +176,9 @@ def user_command(tn):
             threading.Thread(target=do_ztm, args=(tn,)).start()
         if(userData == b'u' or userData == b'U'):
             threading.Thread(target=do_update, args=(tn,)).start()
+        if(userData == b's' or userData == b'S'):
+            print('')
+            print(settings)
         break
 
         
@@ -195,7 +195,19 @@ if(__name__ == '__main__'):
 
         twparser.database_connect(args.db)
 
+        # use settings loaded from the database, if available
+        settings = twparser.settings
+
+        # set a few defaults
+        if(not 'auto_haggle' in settings):
+            settings['auto_haggle'] = False
+        # ensure it's boolean; sqlite3 stores this as text
+        settings['auto_haggle'] = not not int(settings['auto_haggle'])
+
+        settings['mute'] = False
+
         telnetConnection = connect(args.host, args.port)
+        # telnetConnection = None
 
         if(telnetConnection):
             interactive_session(telnetConnection)

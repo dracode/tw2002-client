@@ -36,8 +36,12 @@ port_class_sales =   {1:'BBS', 2:'BSB', 3:'SBB', 4:'SSB', 5:'SBS', 6:'BSS', 7:'S
 # pattern matching the port list from Computer Interrogation Mode (CIM)
 portListRe = re.compile('^(?P<sector>[ 0-9]{3}[0-9]) (?P<ore_bs>[ -]) (?P<ore_amt>[ 0-9]{3}[0-9]) (?P<ore_pct>[ 0-9]{2}[0-9])% (?P<org_bs>[ -]) (?P<org_amt>[ 0-9]{3}[0-9]) (?P<org_pct>[ 0-9]{2}[0-9])% (?P<equ_bs>[ -]) (?P<equ_amt>[ 0-9]{3}[0-9]) (?P<equ_pct>[ 0-9]{2}[0-9])%$')
 
-# pattern to match the list of warps out of each known sector from the CIM report
-warpListRe = re.compile('^(?P<sector>[ 0-9]{3}[0-9])(?P<warps>(?: [ 0-9]{3}[0-9])+)$')
+# pattern to match so we know what sector we're looking at if we see a Trader or Planet
+workingSectorRe = re.compile("^Sector  : (?P<sector>[0-9]+) in .*\.$")
+
+# pattern to match the list of warps out of each known sector from the CIM report or Computer Warps report (C, I)
+warpListFromCIMRe = re.compile('^(?P<sector>[ 0-9]{3}[0-9])(?P<warps>(?: [ 0-9]{3}[0-9])+)$')
+warpListFromCIRe = re.compile("^Sector (?P<sector>[0-9]+) has warps to sector\(s\) : (?P<warps>[0-9 \-]+)$")
 
 # various patterns to match route planning, either via Computer Interrogation Mode (CIM) or Computer -> F Course Plotter (CF) mode
 routeListFromCIMRe = re.compile("^FM > [0-9]+$")
@@ -245,6 +249,11 @@ def parse_complete_line(line):
         return
     log("parse_complete_line: {}".format((strippedLine,)), 3)
 
+    workingSector = workingSectorRe.match(strippedLine)
+    if(workingSector):
+        settings['working_sector'] = int(workingSector.group('sector'))
+        return
+
     stardock = stardockRe.match(strippedLine)
     if(stardock):
         log("stardock: {}".format(stardock), 2)
@@ -281,9 +290,14 @@ def parse_complete_line(line):
         log("saveFighters: {}".format(saveFighters), 2)
         save_fighter_location(saveFighters)
 
-    warpList = warpListRe.match(strippedLine)
+    warpList = warpListFromCIMRe.match(strippedLine)
     if(warpList):
         # print(strippedLine, warpList.groups())
+        save_warp_list(warpList)
+        return
+
+    warpList = warpListFromCIRe.match(strippedLine)
+    if(warpList):
         save_warp_list(warpList)
         return
 
