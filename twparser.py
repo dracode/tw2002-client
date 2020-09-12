@@ -203,15 +203,15 @@ def parse_partial_line(line):
         our_offer = their_offer
         if(port_prev_their_offer == None):
             if(port_operation == 'sell'):
-                our_offer *= 1.06
+                our_offer *= 1.07
             else:
-                our_offer *= 0.96
+                our_offer *= 0.95
         elif(their_offer == port_prev_their_offer):
             # clearly something has gone awry
             return None
         else:
             delta = port_prev_our_offer - their_offer
-            our_offer = port_prev_our_offer - (delta * 0.2)
+            our_offer = port_prev_our_offer - (delta * 0.3)
         port_prev_their_offer = their_offer
         port_prev_our_offer = our_offer
         return('{}'.format(int(our_offer)).encode('utf-8'))
