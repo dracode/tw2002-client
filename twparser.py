@@ -16,9 +16,15 @@ routeList = None
 database = None
 DEFAULT_DB_NAME = 'tw2002.db'
 dbqueue = queue.Queue()
+settings = {}
 
 # verbosity level for parser output
 verbose = 0
+
+port_operation = None
+port_prev_their_offer = None
+port_prev_our_offer = None
+
 
 # sync flag for threads to exit
 QUITTING_TIME = False
@@ -45,6 +51,9 @@ saveFightersRe = re.compile("^ (?P<sector>[0-9 ]{4}[0-9])\s+[0-9]+\s+(?:Personal
 
 # keep track of planet locations
 planetListRe = re.compile("^\s*(?P<sector>[0-9 ]{4}[0-9])\s+T?\s+#(?P<id>[0-9]+)\s+(?P<name>.*?)\s+Class (?P<class>[A-Z]), .*(?P<citadel>No Citadel|Level [0-9])")
+
+portOperationRe = re.compile("How many holds of .+ do you want to (?P<operation>buy|sell) \[[0-9,]+\]\?")
+portPromptRe = re.compile(r"^Your offer \[(?P<offer>[0-9,]+)\] \?$")
 
 # from https://stackoverflow.com/questions/14693701/how-can-i-remove-the-ansi-escape-sequences-from-a-string-in-python
 def strip_ansi(inString):
@@ -178,19 +187,51 @@ def db_queue(func, *args):
 
 
 def parse_partial_line(line):
+    global port_prev_their_offer
+    global port_prev_our_offer
+    global port_operation
+
     try:
         strippedLine = strip_ansi(line).decode('utf-8').rstrip()
     except:
         return
     log("parse_partial_line: {}".format((strippedLine,)), 3)
 
+    portPrompt = portPromptRe.match(strippedLine)
+    if(portPrompt):
+        their_offer = int(portPrompt.group('offer').replace(',',''))
+        our_offer = their_offer
+        if(port_prev_their_offer == None):
+            if(port_operation == 'sell'):
+                our_offer *= 1.06
+            else:
+                our_offer *= 0.96
+        elif(their_offer == port_prev_their_offer):
+            # clearly something has gone awry
+            return None
+        else:
+            delta = port_prev_our_offer - their_offer
+            our_offer = port_prev_our_offer - (delta * 0.2)
+        port_prev_their_offer = their_offer
+        port_prev_our_offer = our_offer
+        return('{}'.format(int(our_offer)).encode('utf-8'))
+
 def parse_complete_line(line):
     global routeList
+    global port_operation
+    global port_prev_their_offer
     try:
         strippedLine = strip_ansi(line).decode('utf-8').rstrip()
     except:
         return
     log("parse_complete_line: {}".format((strippedLine,)), 3)
+
+    portOperation = portOperationRe.match(strippedLine)
+    if(portOperation):
+        log("portOperation: {}".format(portOperation), 2)
+        port_operation = portOperation.group('operation')
+        port_prev_their_offer = None
+        return
 
     clearFighters = clearFightersRe.match(strippedLine)
     if(clearFighters):

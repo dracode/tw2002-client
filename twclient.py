@@ -18,6 +18,7 @@ import twparser
 settings = {}
 settings['mute'] = False
 settings['max_sector'] = 1000
+settings['auto_haggle'] = False
 
 DEFAULT_DB_NAME = 'tw2002.db'
 
@@ -98,7 +99,7 @@ def interactive_session(tn):
                     if(len(currentData)):
                         # print(("currentData", currentData))
                         # print(currentData, end='')
-                        twparser.parse_partial_line(currentData)
+                        pass
                 else:
                     noNewData += 1
 
@@ -130,6 +131,12 @@ def interactive_session(tn):
                         userData = sys.stdin.buffer.read(1)
                 # we haven't seen any data recently, so give the CPU a break...
                 if(noNewData > 5):
+                    # no new data has come in for a bit, so we're probably paused at a prompt.  parse the prompt line
+                    if(len(currentData)):
+                        suggestion = twparser.parse_partial_line(currentData)
+                        if(settings['auto_haggle'] and suggestion):
+                            # print("SUGGESTION:", suggestion)
+                            tn.write(suggestion)
                     time.sleep(0.1)
                         
 def do_ztm(tn):
