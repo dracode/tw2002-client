@@ -130,17 +130,18 @@ def interactive_session(tn):
                         tn.write(userData)
                         userData = sys.stdin.buffer.read(1)
                 # we haven't seen any data recently, so give the CPU a break...
-                if(noNewData > 5):
+                if(noNewData > 3):
                     # no new data has come in for a bit, so we're probably paused at a prompt.  parse the prompt line
                     if(len(currentData)):
                         suggestion = twparser.parse_partial_line(currentData)
                         if(settings['auto_haggle'] and suggestion):
                             # print("SUGGESTION:", suggestion)
                             tn.write(suggestion)
+                if(noNewData > 5):
                     time.sleep(0.1)
                         
 def do_ztm(tn):
-    tn.write(b'QQQQQQQQN^')
+    tn.write(b'QQQQQQQQNV^')
     for x in range(2, settings['max_sector']+1):
         cmd = 'F{}\r\n{}\r\n'.format(1, x)
         tn.write(cmd.encode('utf-8'))

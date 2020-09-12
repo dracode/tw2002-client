@@ -14,6 +14,7 @@ routeList = None
 
 # our SQLite database
 database = None
+DB_THREAD_ID = None
 DEFAULT_DB_NAME = 'tw2002.db'
 dbqueue = queue.Queue()
 settings = {}
@@ -52,8 +53,13 @@ saveFightersRe = re.compile("^ (?P<sector>[0-9 ]{4}[0-9])\s+[0-9]+\s+(?:Personal
 # keep track of planet locations
 planetListRe = re.compile("^\s*(?P<sector>[0-9 ]{4}[0-9])\s+T?\s+#(?P<id>[0-9]+)\s+(?P<name>.*?)\s+Class (?P<class>[A-Z]), .*(?P<citadel>No Citadel|Level [0-9])")
 
+# auto-haggle triggers
 portOperationRe = re.compile("How many holds of .+ do you want to (?P<operation>buy|sell) \[[0-9,]+\]\?")
 portPromptRe = re.compile(r"^Your offer \[(?P<offer>[0-9,]+)\] \?$")
+
+# game information
+maxSectorRe = re.compile("^\s+Maximum players [0-9]+, sectors (?P<maxSector>[0-9,]+), ports [0-9,]+, planets [0-9,]+\.")
+stardockRe = re.compile("^\s*The StarDock is located in sector (?P<sector>[0-9,]+)\.$")
 
 # from https://stackoverflow.com/questions/14693701/how-can-i-remove-the-ansi-escape-sequences-from-a-string-in-python
 def strip_ansi(inString):
@@ -83,6 +89,16 @@ def log(msg, logLevel):
         return
     print("[LogLevel {}]: {}".format(logLevel, msg), flush=True)
 
+# function decorator that will pass off database write operations to the dedicated thread, if called from another thread
+def dbWriteWrapper(func):
+    def func_dbWriteWrapper(*args):
+        if(threading.get_ident() != DB_THREAD_ID):
+            dbqueue.put((func, *args))
+            return
+        return func(*args)
+    return func_dbWriteWrapper
+
+@dbWriteWrapper
 def clear_fighter_locations():
     global database
     log("clear_fighter_locations", 1)
@@ -90,6 +106,7 @@ def clear_fighter_locations():
     c.execute('DELETE FROM fighters')
     database.commit()
 
+@dbWriteWrapper
 def save_fighter_location(match):
     global database
     sector = int(match.group('sector').strip())
@@ -99,17 +116,21 @@ def save_fighter_location(match):
     c.execute('REPLACE INTO fighters (sector) VALUES(?)', (sector,))
     database.commit()
 
+@dbWriteWrapper
+def save_setting(key,value):
+    global database
+
+    c = database.cursor()
+    c.execute('REPLACE INTO settings (key, value) VALUES(?, ?)', (key, value))
+    database.commit()
+
+@dbWriteWrapper
 def save_warp_list(match):
     global database
     sector = int(match.group('sector').strip())
     warps = re.findall('[0-9]+', match.group('warps'))
     log("save_warp_list: {}, {}".format(sector, warps), 1)
     c = database.cursor()
-    # special case: this is the first sector; clear our Explored list so we can repopulate it fresh
-    # if(sector == 1 and warps == ['2', '3', '4', '5', '6', '7']):
-    #     print("DELETE")
-    #     c.execute('DELETE FROM explored')
-    # on second thought, we can never "un-discover" a sector anyway so this is pointless
     c.execute('''
         REPLACE into explored (sector)
         VALUES(?)
@@ -122,7 +143,7 @@ def save_warp_list(match):
         )
     database.commit()
 
-
+@dbWriteWrapper
 def save_port_list(match):
     global database
     log("save_port_list: {}".format(match.groups()), 1)
@@ -145,6 +166,7 @@ def save_port_list(match):
     )
     database.commit()
 
+@dbWriteWrapper
 def save_planet_list(match):
     global database
     log("save_planet_list: {}".format(match.groups()), 1)
@@ -166,6 +188,7 @@ def save_planet_list(match):
     )
     database.commit()
 
+@dbWriteWrapper
 def save_route_list(match):
     global database
     route = re.findall('[0-9]+', match.group('route'))
@@ -180,10 +203,6 @@ def save_route_list(match):
             ''', (int(route[i]), int(route[i+1]))
         )
     database.commit()
-
-
-def db_queue(func, *args):
-    dbqueue.put((func, *args))
 
 
 def parse_partial_line(line):
@@ -226,6 +245,24 @@ def parse_complete_line(line):
         return
     log("parse_complete_line: {}".format((strippedLine,)), 3)
 
+    stardock = stardockRe.match(strippedLine)
+    if(stardock):
+        log("stardock: {}".format(stardock), 2)
+        sd = int(stardock.group('sector').replace(',',''))
+        if(not 'stardock' in settings or settings['stardock'] != sd):
+            settings['stardock'] = sd
+            save_setting('stardock', sd)
+        return
+
+    maxSector = maxSectorRe.match(strippedLine)
+    if(maxSector):
+        log("maxSector: {}".format(maxSector), 2)
+        max_sector = int(maxSector.group('maxSector').replace(',',''))
+        if(not 'max_sector' in settings or settings['max_sector'] != max_sector):
+            settings['max_sector'] = max_sector
+            save_setting('max_sector', max_sector)
+        return
+
     portOperation = portOperationRe.match(strippedLine)
     if(portOperation):
         log("portOperation: {}".format(portOperation), 2)
@@ -236,30 +273,30 @@ def parse_complete_line(line):
     clearFighters = clearFightersRe.match(strippedLine)
     if(clearFighters):
         log("clearFighters: {}".format(clearFighters), 2)
-        db_queue(clear_fighter_locations)
+        clear_fighter_locations()
         return
 
     saveFighters = saveFightersRe.match(strippedLine)
     if(saveFighters):
         log("saveFighters: {}".format(saveFighters), 2)
-        db_queue(save_fighter_location,saveFighters)
+        save_fighter_location(saveFighters)
 
     warpList = warpListRe.match(strippedLine)
     if(warpList):
         # print(strippedLine, warpList.groups())
-        db_queue(save_warp_list,warpList)
+        save_warp_list(warpList)
         return
 
     portList = portListRe.match(strippedLine)
     if(portList):
         # print(strippedLine, portList.groups())
-        db_queue(save_port_list,portList)
+        save_port_list(portList)
         return
 
     planetList = planetListRe.match(strippedLine)
     if(planetList):
         log("planetList: {}".format(planetList.groups()), 2)
-        db_queue(save_planet_list,planetList)
+        save_planet_list(planetList)
 
     if(routeList): # we've already seen the "FM" line, let's look for the rest of the message
         if(len(strippedLine) == 0):
@@ -273,11 +310,11 @@ def parse_complete_line(line):
 
     routeListComplete = routeListCompleteCIMRe.match(strippedLine)
     if(routeListComplete):
-        db_queue(save_route_list,routeListComplete)
+        save_route_list(routeListComplete)
         return
     routeListComplete = routeListCompleteCFRe.match(strippedLine)
     if(routeListComplete):
-        db_queue(save_route_list,routeListComplete)
+        save_route_list(routeListComplete)
         return
  
     # route listings are multi-line.  accumulate the lines, then we'll process it once it's complete
@@ -294,6 +331,10 @@ def dbqueue_service(dbname):
     global database
     global dbqueue
     global QUITTING_TIME
+    global DB_THREAD_ID
+
+    DB_THREAD_ID = threading.get_ident()
+
     database = sqlite3.connect(dbname)
 
     didWork = False
@@ -381,6 +422,21 @@ def database_connect(dbname):
             );
             ''')
 
+    cursor.execute('''
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            );
+            ''')
+
+
+    for k,v in cursor.execute('''
+            SELECT key, value
+            FROM settings
+            '''):
+        settings[k]=v
+
+    # print(settings)
     cursor.close()
     initdb.commit()
 
