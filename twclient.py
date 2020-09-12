@@ -89,7 +89,7 @@ def interactive_session(tn):
                         print(("arr", arr))
                     for line in arr:
                         if(line[-1] == 0x0a): # ends with b'\n'
-                            twparser.parse_game_line(line[:-1])
+                            twparser.parse_complete_line(line[:-1])
                     if(len(arr) and arr[-1][-1] != 0x0a):
                         currentData = arr[-1]
                     else:
@@ -98,7 +98,7 @@ def interactive_session(tn):
                     if(len(currentData)):
                         # print(("currentData", currentData))
                         # print(currentData, end='')
-                        pass
+                        twparser.parse_partial_line(currentData)
                 else:
                     noNewData += 1
 

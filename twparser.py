@@ -177,13 +177,20 @@ def db_queue(func, *args):
     dbqueue.put((func, *args))
 
 
-def parse_game_line(line, dbWriter=True):
+def parse_partial_line(line):
+    try:
+        strippedLine = strip_ansi(line).decode('utf-8').rstrip()
+    except:
+        return
+    log("parse_partial_line: {}".format((strippedLine,)), 3)
+
+def parse_complete_line(line):
     global routeList
     try:
         strippedLine = strip_ansi(line).decode('utf-8').rstrip()
     except:
         return
-    log("parse_game_line: {}".format((strippedLine,)), 3)
+    log("parse_complete_line: {}".format((strippedLine,)), 3)
 
     clearFighters = clearFightersRe.match(strippedLine)
     if(clearFighters):
@@ -377,7 +384,7 @@ if(__name__ == '__main__'):
 
         for f in args.filename:
             for line in f:
-                parse_game_line(line)
+                parse_complete_line(line)
     finally:
         quit()
 
