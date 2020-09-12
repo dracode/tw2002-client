@@ -336,8 +336,8 @@ if(__name__ == '__main__'):
         # plot the route again to verify that it follows our desired route
         print("F{}\n{}".format(route[0], route[-1]))
         print('')
-        print("After the probe is done, update your newly explored sectors:")
-        print("C")
+        print("After the probe is done, clear those avoids and update your newly explored sectors:")
+        print("CV0\nYY")
         for sector in route:
             if(not sector in explored):
                 print("I{}".format(sector))
