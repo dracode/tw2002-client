@@ -22,9 +22,13 @@ settings = {}
 # verbosity level for parser output
 verbose = 0
 
-port_operation = None
-port_prev_their_offer = None
-port_prev_our_offer = None
+class PortStatus:
+    operation = None
+    prev_their_offer = None
+    prev_our_offer = None
+    final_offer = False
+
+port_status = PortStatus()
 
 
 # sync flag for threads to exit
@@ -58,7 +62,8 @@ saveFightersRe = re.compile("^ (?P<sector>[0-9 ]{4}[0-9])\s+[0-9]+\s+(?:Personal
 planetListRe = re.compile("^\s*(?P<sector>[0-9 ]{4}[0-9])\s+T?\s+#(?P<id>[0-9]+)\s+(?P<name>.*?)\s+Class (?P<class>[A-Z]), .*(?P<citadel>No Citadel|Level [0-9])")
 
 # auto-haggle triggers
-portOperationRe = re.compile("How many holds of .+ do you want to (?P<operation>buy|sell) \[[0-9,]+\]\?")
+portOperationRe = re.compile("^How many holds of .+ do you want to (?P<operation>buy|sell) \[[0-9,]+\]\?")
+portFinalOfferRe = re.compile("^Our final offer is [0-9,]+ credits.$")
 portPromptRe = re.compile(r"^Your offer \[(?P<offer>[0-9,]+)\] \?$")
 
 # game information
@@ -91,6 +96,10 @@ def log(msg, logLevel):
     global verbose
     if(logLevel > verbose):
         return
+    try:
+        msg = 'String={}, groups={}'.format(repr(msg.string), repr(msg.groupdict()))
+    except:
+        pass
     print("[LogLevel {}]: {}".format(logLevel, msg), flush=True)
 
 # function decorator that will pass off database write operations to the dedicated thread, if called from another thread
@@ -210,9 +219,7 @@ def save_route_list(match):
 
 
 def parse_partial_line(line):
-    global port_prev_their_offer
-    global port_prev_our_offer
-    global port_operation
+    global port_status
 
     try:
         strippedLine = strip_ansi(line).decode('utf-8').rstrip()
@@ -224,25 +231,28 @@ def parse_partial_line(line):
     if(portPrompt):
         their_offer = int(portPrompt.group('offer').replace(',',''))
         our_offer = their_offer
-        if(port_prev_their_offer == None):
-            if(port_operation == 'sell'):
+        if(port_status.prev_their_offer == None):
+            if(port_status.operation == 'sell'):
                 our_offer *= 1.07
             else:
                 our_offer *= 0.95
-        elif(their_offer == port_prev_their_offer):
+        elif(their_offer == port_status.prev_their_offer):
             # clearly something has gone awry
             return None
         else:
-            delta = port_prev_our_offer - their_offer
-            our_offer = port_prev_our_offer - (delta * 0.3)
-        port_prev_their_offer = their_offer
-        port_prev_our_offer = our_offer
+            mult = 0.3
+            if(port_status.final_offer):
+                mult = 0.5
+            delta = port_status.prev_our_offer - their_offer
+            our_offer = port_status.prev_our_offer - (delta * mult)
+        port_status.prev_their_offer = their_offer
+        port_status.prev_our_offer = our_offer
+        port_status.final_offer = False
         return('{}'.format(int(our_offer)).encode('utf-8'))
 
 def parse_complete_line(line):
     global routeList
-    global port_operation
-    global port_prev_their_offer
+    global port_status
     try:
         strippedLine = strip_ansi(line).decode('utf-8').rstrip()
     except:
@@ -275,8 +285,14 @@ def parse_complete_line(line):
     portOperation = portOperationRe.match(strippedLine)
     if(portOperation):
         log("portOperation: {}".format(portOperation), 2)
-        port_operation = portOperation.group('operation')
-        port_prev_their_offer = None
+        port_status.operation = portOperation.group('operation')
+        port_status.prev_their_offer = None
+        return
+
+    portFinalOffer = portFinalOfferRe.match(strippedLine)
+    if(portFinalOffer):
+        log("portFinalOffer: {}".format(portFinalOffer), 2)
+        port_status.final_offer = True
         return
 
     clearFighters = clearFightersRe.match(strippedLine)
@@ -356,10 +372,16 @@ def dbqueue_service(dbname):
         try:
             func, *args = dbqueue.get(block=False)
             if(len(args)):
-                log("dbqueue_service: {}({})".format(func, *args), 1)
+                logStr = "dbqueue_service: {}({})".format(func.__name__, *args)
+                try:
+                    logStr = "dbqueue_service: {}({})".format(func.__name__, ', '.join([repr(x.groupdict()) for x in args]))
+                except:
+                    traceback.print_exc()
+                    pass
+                log(logStr, 1)
                 func(*args)
             else:
-                log("dbqueue_service: {}()".format(func),1)
+                log("dbqueue_service: {}()".format(func.__name__),1)
                 func()
             didWork += 1
         except queue.Empty:
