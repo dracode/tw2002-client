@@ -92,7 +92,7 @@ def strip_ansi(inString):
     return ansi_escape_8bit.sub(b'', inString)
 
 
-def log(msg, logLevel):
+def log(logLevel, msg):
     global verbose
     if(logLevel > verbose):
         return
@@ -114,7 +114,7 @@ def dbWriteWrapper(func):
 @dbWriteWrapper
 def clear_fighter_locations():
     global database
-    log("clear_fighter_locations", 1)
+    log(1, "clear_fighter_locations")
     c = database.cursor()
     c.execute('DELETE FROM fighters')
     database.commit()
@@ -123,7 +123,7 @@ def clear_fighter_locations():
 def save_fighter_location(match):
     global database
     sector = int(match.group('sector').strip())
-    log("save_fighter_location: {}".format(sector), 1)
+    log(1, "save_fighter_location: {}".format(sector))
 
     c = database.cursor()
     c.execute('REPLACE INTO fighters (sector) VALUES(?)', (sector,))
@@ -142,7 +142,7 @@ def save_warp_list(match):
     global database
     sector = int(match.group('sector').strip())
     warps = re.findall('[0-9]+', match.group('warps'))
-    log("save_warp_list: {}, {}".format(sector, warps), 1)
+    log(1, "save_warp_list: {}, {}".format(sector, warps))
     c = database.cursor()
     c.execute('''
         REPLACE into explored (sector)
@@ -159,7 +159,7 @@ def save_warp_list(match):
 @dbWriteWrapper
 def save_port_list(match):
     global database
-    log("save_port_list: {}".format(match.groups()), 1)
+    log(1, "save_port_list: {}".format(match.groups()))
     port_class = (match.group('ore_bs') + match.group('org_bs') + match.group('equ_bs')).replace(' ', 'S').replace('-', 'B')
 
     c = database.cursor()
@@ -182,7 +182,7 @@ def save_port_list(match):
 @dbWriteWrapper
 def save_planet_list(match):
     global database
-    log("save_planet_list: {}".format(match.groups()), 1)
+    log(1, "save_planet_list: {}".format(match.groups()))
     c = database.cursor()
 
     citadel = match.group('citadel').strip()[-1]
@@ -205,7 +205,7 @@ def save_planet_list(match):
 def save_route_list(match):
     global database
     route = re.findall('[0-9]+', match.group('route'))
-    log("save_route_list: {}".format(route), 1)
+    log(1, "save_route_list: {}".format(route))
 
     c = database.cursor()
     for i in range(len(route)-1):
@@ -225,7 +225,7 @@ def parse_partial_line(line):
         strippedLine = strip_ansi(line).decode('utf-8').rstrip()
     except:
         return
-    log("parse_partial_line: {}".format((strippedLine,)), 3)
+    log(3, "parse_partial_line: {}".format((strippedLine,)))
 
     portPrompt = portPromptRe.match(strippedLine)
     if(portPrompt):
@@ -257,7 +257,7 @@ def parse_complete_line(line):
         strippedLine = strip_ansi(line).decode('utf-8').rstrip()
     except:
         return
-    log("parse_complete_line: {}".format((strippedLine,)), 3)
+    log(3, "parse_complete_line: {}".format((strippedLine,)))
 
     workingSector = workingSectorRe.match(strippedLine)
     if(workingSector):
@@ -266,7 +266,7 @@ def parse_complete_line(line):
 
     stardock = stardockRe.match(strippedLine)
     if(stardock):
-        log("stardock: {}".format(stardock), 2)
+        log(2, "stardock: {}".format(stardock))
         sd = int(stardock.group('sector').replace(',',''))
         if(not 'stardock' in settings or settings['stardock'] != sd):
             settings['stardock'] = sd
@@ -275,7 +275,7 @@ def parse_complete_line(line):
 
     maxSector = maxSectorRe.match(strippedLine)
     if(maxSector):
-        log("maxSector: {}".format(maxSector), 2)
+        log(2, "maxSector: {}".format(maxSector))
         max_sector = int(maxSector.group('maxSector').replace(',',''))
         if(not 'max_sector' in settings or settings['max_sector'] != max_sector):
             settings['max_sector'] = max_sector
@@ -284,26 +284,26 @@ def parse_complete_line(line):
 
     portOperation = portOperationRe.match(strippedLine)
     if(portOperation):
-        log("portOperation: {}".format(portOperation), 2)
+        log(2, "portOperation: {}".format(portOperation))
         port_status.operation = portOperation.group('operation')
         port_status.prev_their_offer = None
         return
 
     portFinalOffer = portFinalOfferRe.match(strippedLine)
     if(portFinalOffer):
-        log("portFinalOffer: {}".format(portFinalOffer), 2)
+        log(2, "portFinalOffer: {}".format(portFinalOffer))
         port_status.final_offer = True
         return
 
     clearFighters = clearFightersRe.match(strippedLine)
     if(clearFighters):
-        log("clearFighters: {}".format(clearFighters), 2)
+        log(2, "clearFighters: {}".format(clearFighters))
         clear_fighter_locations()
         return
 
     saveFighters = saveFightersRe.match(strippedLine)
     if(saveFighters):
-        log("saveFighters: {}".format(saveFighters), 2)
+        log(2, "saveFighters: {}".format(saveFighters))
         save_fighter_location(saveFighters)
 
     warpList = warpListFromCIMRe.match(strippedLine)
@@ -325,7 +325,7 @@ def parse_complete_line(line):
 
     planetList = planetListRe.match(strippedLine)
     if(planetList):
-        log("planetList: {}".format(planetList.groups()), 2)
+        log(2, "planetList: {}".format(planetList.groups()))
         save_planet_list(planetList)
 
     if(routeList): # we've already seen the "FM" line, let's look for the rest of the message
@@ -378,10 +378,10 @@ def dbqueue_service(dbname):
                 except:
                     traceback.print_exc()
                     pass
-                log(logStr, 1)
+                log(1, logStr)
                 func(*args)
             else:
-                log("dbqueue_service: {}()".format(func.__name__),1)
+                log(1, "dbqueue_service: {}()".format(func.__name__))
                 func()
             didWork += 1
         except queue.Empty:
@@ -404,7 +404,7 @@ def dbqueue_monitor():
     while(True):
         cnt += 1
         if((cnt % 10) == 0):
-            log("dbqueue_monitor: {} queued items".format(dbqueue.qsize()), 1)
+            log(1, "dbqueue_monitor: {} queued items".format(dbqueue.qsize()))
         if(QUITTING_TIME):
             break
         time.sleep(1)
