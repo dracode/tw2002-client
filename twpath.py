@@ -127,8 +127,9 @@ if(__name__ == '__main__'):
     parser.add_argument('--all-destinations', '-a', dest='all', action='store_true', default=False, help='Show routes to all destinations, not only the nearest')
     parser.add_argument('--reverse', '-r', dest='reverse', action='store_true', default=False, help='Reverse the start/destination; useful when you have a single known destination but want to learn the nearest likely starting point (fighter locations, blind warp locations)')
     parser.add_argument('--port-type', '-p', help='Specify a port type by listing desired commodities in the following order: Ore Org Equ, specifying Buy (B) Sell (S) or don\'t care (?).  e.g., "?S?" for a port that sells Organics.')
-    parser.add_argument('--fighters', '-f', action='store_true', help='Set the destination value to all sectors that currently have one of your deployed fighters')
-    parser.add_argument('--blind-warps', '-b', action='store_true', help='Set the destination value to all mapped sectors not known to contain a port.  Use caution when blind warping!')
+    parser.add_argument('--fighters', '-f', action='store_true', help='Adds to your destination list all sectors that currently have one of your deployed fighters')
+    parser.add_argument('--fedspace', '-c', action='store_true', help='Adds to your destination list all sectors in FedSpace')
+    parser.add_argument('--blind-warps', '-b', action='store_true', help='Adds to your destination list all mapped sectors not known to contain a port.  Use caution when blind warping!')
     parser.add_argument('--avoids', '-v', type=int, default=[], nargs='+', help='Sectors to avoid plotting a route through')
     parser.add_argument('start',  type=int, help='The starting sector for the route calculation')
     parser.add_argument('destination', type=int, nargs='*', help='The desired destination sector')
@@ -143,6 +144,20 @@ if(__name__ == '__main__'):
 
     if(args.blind_warps):
         args.destination += blind_warps()
+
+    if(args.fedspace):
+        fedSpace = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        starDock = None
+        try:
+            conn = database.cursor()
+            for sd in conn.execute('SELECT value FROM settings WHERE key=?', ('stardock',)):
+                starDock = int(sd[0])
+            conn.close()
+        except:
+            pass
+        if(starDock):
+            fedSpace.append(starDock)
+        args.destination += fedSpace
 
     if(args.port_type):
         if(not re.match('^[BbSs?]{3}$', args.port_type)):

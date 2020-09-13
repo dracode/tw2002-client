@@ -71,7 +71,7 @@ def main(dbname, port_type, commissioned=False):
         starDock = None
         try:
             for sd in conn.execute('SELECT value FROM settings WHERE key=?', ('stardock',)):
-                starDock = int(sd)
+                starDock = int(sd[0])
         except:
             pass
         if(starDock):
