@@ -52,7 +52,7 @@ def port_score(portA, portB, port_type):
         amt_score += portA.equ_amt + portB.equ_amt
     return (pct_score, amt_score)
 
-def main(dbname, port_type):
+def main(dbname, port_type, commissioned=False):
     database = sqlite3.connect(dbname)
 
     ports = {}
@@ -65,6 +65,17 @@ def main(dbname, port_type):
     pt_regex = "^" + port_type.replace("?", ".") + "$"
     opt_regex = "^" + opposite_port_type.replace("?", ".") + "$"
     # print(pt_regex, opt_regex)
+
+    fedSpace = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    if(commissioned):
+        starDock = None
+        try:
+            for sd in conn.execute('SELECT value FROM settings WHERE key=?', ('stardock',)):
+                starDock = int(sd)
+        except:
+            pass
+        if(starDock):
+            fedSpace.append(starDock)
 
     # get a list of all ports
     for port in conn.execute('SELECT * FROM ports'):
@@ -97,25 +108,34 @@ def main(dbname, port_type):
     twpath.connect_database(dbname)
 
     fighters = twpath.fighter_locations()
+    if(commissioned):
+        fighters += fedSpace
+
     blind_warps = twpath.blind_warps()
 
     for a_b in sorted(candidates.keys(), key=lambda a_b:port_score(ports[a_b[0]], ports[a_b[1]], port_type)):
         for p in a_b:
-            fRoute = [str(s) for s in twpath.dijkstra(p, fighters, reverse=True)[0]]
+            fRoute = None
+            if(len(fighters)):
+                fRoute = [str(s) for s in twpath.dijkstra(p, fighters, reverse=True)[0]]
             print(ports[p], end='')
-            if(len(fRoute) > 1):
-                print("\n\t\tRoute from nearest fighter ({} hops):\t{}".format(len(fRoute)-1, ' > '.join(fRoute)))
+            if(fRoute is None):
+                print('')
+            elif(len(fRoute) > 1):
+                print("\n\t\tRoute from nearest safe warp ({} hops):\t{}".format(len(fRoute)-1, ' > '.join(fRoute)))
             else:
                 print(DIRECT)
-            bRoute = [str(s) for s in twpath.dijkstra(p, blind_warps, reverse=True)[0]]
-            if(len(bRoute) < len(fRoute)):
-                print("\t\tNearest explored blind warp ({} hops):\t{}".format(len(bRoute)-1, ' > '.join(bRoute)))
+            if(len(blind_warps)):
+                bRoute = [str(s) for s in twpath.dijkstra(p, blind_warps, reverse=True)[0]]
+                if(fRoute is None or len(bRoute) < len(fRoute)):
+                    print("\t\tNearest explored blind warp ({} hops):\t{}".format(len(bRoute)-1, ' > '.join(bRoute)))
 
         print('')
 
 if(__name__ == '__main__'):
     parser = argparse.ArgumentParser(description='Find pairs of adjacent ports that will buy/sell your desired commodities.  One port of the pair will match what you specify in the command, and the other will be the opposite.')
     parser.add_argument('--database', '-d', dest='db', default=DEFAULT_DB_NAME, help='SQLite database file to use; default "{}"'.format(DEFAULT_DB_NAME))
+    parser.add_argument('--commissioned', '-c', action='store_true', help='If you have a Commission, FedSpace sectors will be factored in for the nearest safe warp location')
     parser.add_argument('--port-type', '-p', default="?BS", help='Specify a port type by listing desired commodities in the following order: Ore Org Equ, specifying Buy (B) Sell (S) or don\'t care (?).  e.g., "?S?" for a port that sells Organics.  Default: "?BS".')
 
     args = parser.parse_args()
@@ -125,5 +145,5 @@ if(__name__ == '__main__'):
         if(not re.match('^[BbSs?]{3}$', args.port_type)):
             raise argparse.ArgumentTypeError('Enter a 3 character code consisting only of "?", "B", or "S", e.g., "S?B" for a port that sells Fuel Ore and buys Equipment.')
 
-    main(args.db, args.port_type)
+    main(args.db, args.port_type, commissioned=args.commissioned)
 
