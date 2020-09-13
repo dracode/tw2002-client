@@ -35,12 +35,13 @@ def blind_warps():
         blind_warps.append(int(sector[0]))
     return blind_warps
 
-def port_search(searchStr):
+def port_search(searchStr, avoids=[]):
     global database
     searchStr = searchStr.upper().replace("?", "_")
     conn = database.cursor()
     query = conn.execute("SELECT sector FROM ports WHERE class LIKE ?", (searchStr,))
     retval = [int(sector[0]) for sector in query]
+    retval = filter(lambda p: p not in avoids, retval)
     conn.close()
     return retval
 
@@ -146,7 +147,7 @@ if(__name__ == '__main__'):
     if(args.port_type):
         if(not re.match('^[BbSs?]{3}$', args.port_type)):
                 raise argparse.ArgumentTypeError('Enter a 3 character code consisting only of "?", "B", or "S", e.g., "S?B" for a port that sells Fuel Ore and buys Equipment.')
-        args.destination += port_search(args.port_type)
+        args.destination += port_search(args.port_type, args.avoids)
 
     results = dijkstra(args.start, args.destination, reverse=args.reverse, avoids=args.avoids, return_all=args.all)
     for result in results:
