@@ -52,19 +52,18 @@ def port_score(portA, portB, port_type):
         amt_score += portA.equ_amt + portB.equ_amt
     return (pct_score, amt_score)
 
-def main(dbname, port_type, commissioned=False):
+def main(dbname, port_type_A, port_type_B, commissioned=False):
     database = sqlite3.connect(dbname)
 
     ports = {}
 
     conn = database.cursor()
 
-    port_type = port_type.upper()
-    opposite_port_type = port_type.replace("B", "T").replace("S", "B").replace("T", "S")
+    port_type_A = port_type_A.upper()
+    port_type_B = port_type_B.upper()
 
-    pt_regex = "^" + port_type.replace("?", ".") + "$"
-    opt_regex = "^" + opposite_port_type.replace("?", ".") + "$"
-    # print(pt_regex, opt_regex)
+    ptA_regex = "^" + port_type_A.replace("?", ".") + "$"
+    ptB_regex = "^" + port_type_B.replace("?", ".") + "$"
 
     fedSpace = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     if(commissioned):
@@ -96,12 +95,12 @@ def main(dbname, port_type, commissioned=False):
     for sector in ports:
         portA = ports[sector]
         # if(portA.port_class[1:] != 'SB'):
-        if(not re.match(pt_regex, portA.port_class)):
+        if(not re.match(ptA_regex, portA.port_class)):
             continue
         for warp in portA.warps:
             portB = ports[warp]
             # if(portB.port_class[1:] == 'BS'):
-            if(re.match(opt_regex, portB.port_class)):
+            if(re.match(ptB_regex, portB.port_class)):
                 candidates[tuple(sorted([sector, warp]))] = True
 
 
@@ -113,7 +112,7 @@ def main(dbname, port_type, commissioned=False):
 
     blind_warps = twpath.blind_warps()
 
-    for a_b in sorted(candidates.keys(), key=lambda a_b:port_score(ports[a_b[0]], ports[a_b[1]], port_type)):
+    for a_b in sorted(candidates.keys(), key=lambda a_b:port_score(ports[a_b[0]], ports[a_b[1]], port_type_A)):
         for p in a_b:
             fRoute = None
             if(len(fighters)):
@@ -136,14 +135,21 @@ if(__name__ == '__main__'):
     parser = argparse.ArgumentParser(description='Find pairs of adjacent ports that will buy/sell your desired commodities.  One port of the pair will match what you specify in the command, and the other will be the opposite.')
     parser.add_argument('--database', '-d', dest='db', default=DEFAULT_DB_NAME, help='SQLite database file to use; default "{}"'.format(DEFAULT_DB_NAME))
     parser.add_argument('--commissioned', '-c', action='store_true', help='If you have a Commission, FedSpace sectors will be factored in for the nearest safe warp location')
-    parser.add_argument('--port-type', '-p', default="?BS", help='Specify a port type by listing desired commodities in the following order: Ore Org Equ, specifying Buy (B) Sell (S) or don\'t care (?).  e.g., "?S?" for a port that sells Organics.  Default: "?BS".')
+    parser.add_argument('--port-type', '-p', default="?BS", help='Specify a port type by listing desired commodities in the following order: Ore Org Equ, specifying Buy (B) Sell (S) or don\'t care (?).  e.g., "?S?" for a port that sells Organics.  Can specify both port types, if desired, e.g., "SBS-SSB".  Default: "?BS".')
 
     args = parser.parse_args()
     # print(args)
 
     if(args.port_type):
-        if(not re.match('^[BbSs?]{3}$', args.port_type)):
-            raise argparse.ArgumentTypeError('Enter a 3 character code consisting only of "?", "B", or "S", e.g., "S?B" for a port that sells Fuel Ore and buys Equipment.')
+        tmp = re.match('^(?P<portA>[BbSs?]{3})-(?P<portB>[BbSs?]{3})$', args.port_type)
+        if(tmp):
+            portA = tmp.group('portA')
+            portB = tmp.group('portB')
+        elif(re.match('^[BbSs?]{3}$', args.port_type)):
+            portA = args.port_type
+            portB = portA.replace("B", "T").replace("S", "B").replace("T", "S")
+        else:
+            raise argparse.ArgumentTypeError('Enter a 3 character code consisting only of "?", "B", or "S", e.g., "S?B" for a port that sells Fuel Ore and buys Equipment.  Optionally, enter two 3 character codes separated by a "-", e.g., "S?B-?SS".')
 
-    main(args.db, args.port_type, commissioned=args.commissioned)
+    main(args.db, portA, portB, commissioned=args.commissioned)
 
