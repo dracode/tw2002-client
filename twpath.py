@@ -45,6 +45,19 @@ def port_search(searchStr, avoids=[]):
     conn.close()
     return retval
 
+def deadend_search(avoids=[]):
+    global database
+    conn = database.cursor()
+    query = conn.execute('''
+        SELECT sector, count(sector)
+        FROM warps, explored
+        WHERE warps.destination = explored.sector
+        GROUP BY sector
+        HAVING count(sector)=1''')
+    retval = [int(sector[0]) for sector in query]
+    retval = filter(lambda p: p not in avoids, retval)
+    conn.close()
+    return retval
 
 def list_all_sectors():
     global database
@@ -131,6 +144,7 @@ if(__name__ == '__main__'):
     parser.add_argument('--fedspace', '-c', action='store_true', help='Adds to your destination list all sectors in FedSpace')
     parser.add_argument('--blind-warps', '-b', action='store_true', help='Adds to your destination list all mapped sectors not known to contain a port.  Use caution when blind warping!')
     parser.add_argument('--avoids', '-v', type=int, default=[], nargs='+', help='Sectors to avoid plotting a route through')
+    parser.add_argument('--dead-ends', '-e', action='store_true', help='Adds known presumed to be dead end sectors')
     parser.add_argument('start',  type=int, help='The starting sector for the route calculation')
     parser.add_argument('destination', type=int, nargs='*', help='The desired destination sector')
 
@@ -163,6 +177,9 @@ if(__name__ == '__main__'):
         if(not re.match('^[BbSs?]{3}$', args.port_type)):
                 raise argparse.ArgumentTypeError('Enter a 3 character code consisting only of "?", "B", or "S", e.g., "S?B" for a port that sells Fuel Ore and buys Equipment.')
         args.destination += port_search(args.port_type, args.avoids)
+
+    if(args.dead_ends):
+        args.destination += deadend_search(args.avoids)
 
     results = dijkstra(args.start, args.destination, reverse=args.reverse, avoids=args.avoids, return_all=args.all)
     for result in results:
