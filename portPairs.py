@@ -75,12 +75,18 @@ def main(dbname, port_type_A, port_type_B, separation=1, commissioned=False):
             fedSpace.append(starDock)
 
     max_last_seen = ''
+    portA_candidates = []
+    portB_candidates = []
     # get a list of all ports
     for port in conn.execute('SELECT * FROM ports'):
         p = Port(port)
         ports[p.sector] = p
         if(p.last_seen > max_last_seen):
             max_last_seen = p.last_seen
+        if(re.match(ptA_regex, p.port_class)):
+            portA_candidates.append(p.sector)
+        if(re.match(ptB_regex, p.port_class)):
+            portB_candidates.append(p.sector)
 
     # find all the neighboring ports
     for sector in ports:
@@ -91,21 +97,37 @@ def main(dbname, port_type_A, port_type_B, separation=1, commissioned=False):
                 ports[sector].warps[warp] = True
         # print(sector, ports[sector].warps)
 
-    # find neighboring ports that offer complementary sales of Org and Equ
-    candidates = {}
-    for sector in ports:
-        portA = ports[sector]
-        # if(portA.port_class[1:] != 'SB'):
-        if(not re.match(ptA_regex, portA.port_class)):
-            continue
-        for warp in portA.warps:
-            portB = ports[warp]
-            # if(portB.port_class[1:] == 'BS'):
-            if(re.match(ptB_regex, portB.port_class)):
-                candidates[tuple(sorted([sector, warp]))] = True
-
-
     twpath.connect_database(dbname)
+
+    # print('portA_candidates', portA_candidates)
+    # print('portB_candidates', portB_candidates)
+
+    candidates = {}
+    if(separation > 1):
+        # find port pairs that satisfy the desired criteria
+        for sector in portA_candidates:
+            portA = ports[sector]
+            # if(portA.port_class[1:] != 'SB'):
+            for pathAB in twpath.dijkstra(sector, portB_candidates, return_all=True):
+                distanceAB = len(pathAB)-1
+                destination = pathAB[-1]
+                if(distanceAB <= separation):
+                    # the distance one way is good, but we should check the return path too in case of one-way warps
+                    pathBA = twpath.dijkstra(destination, sector)[0]
+                    distanceBA = len(pathBA)-1
+                    # print(sector, path)
+                    if(distanceBA <= separation):
+                        candidates[tuple(sorted([sector, destination]))] = (pathAB, pathBA)
+    else:
+        # use the faster checks for adjacency rather than the full dijkstra shortest-path we need for non-adjacent sectors
+        for sector in portA_candidates:
+            portA = ports[sector]
+            for warp in portA.warps:
+                if(warp in portB_candidates):
+                    portB = ports[warp]
+                    if(sector in portB.warps):
+                        candidates[tuple(sorted([sector, warp]))] = ([sector, warp], [warp, sector])
+
 
     fighters = twpath.fighter_locations()
     if(commissioned):
@@ -115,6 +137,9 @@ def main(dbname, port_type_A, port_type_B, separation=1, commissioned=False):
 
     for a_b in sorted(candidates.keys(), key=lambda a_b:port_score(ports[a_b[0]], ports[a_b[1]], port_type_A)):
         for p in a_b:
+            pathAB, pathBA = candidates[a_b]
+            distanceAB = len(pathAB)-1
+            distanceBA = len(pathBA)-1
             fRoute = None
             if(len(fighters)):
                 fRoute = [str(s) for s in twpath.dijkstra(p, fighters, reverse=True)[0]]
@@ -125,12 +150,20 @@ def main(dbname, port_type_A, port_type_B, separation=1, commissioned=False):
                 portStr += '\t *** Direct warp available ***'
             print(portStr)
             if(fRoute and len(fRoute) > 1):
-                print("\n\t\tRoute from nearest safe warp ({} hops):\t{}".format(len(fRoute)-1, ' > '.join(fRoute)))
+                print("\t\tRoute from nearest safe warp ({} hops):\t{}".format(len(fRoute)-1, ' > '.join(fRoute)))
             if(len(blind_warps)):
                 bRoute = [str(s) for s in twpath.dijkstra(p, blind_warps, reverse=True)[0]]
                 if(fRoute is None or len(bRoute) < len(fRoute)):
                     print("\t\tNearest explored blind warp ({} hops):\t{}".format(len(bRoute)-1, ' > '.join(bRoute)))
 
+        if(distanceAB == 1 and distanceBA == 1):
+            if(separation > 1):
+                print("Adjacent sectors")
+        else:
+            print("Route between trade pair:  {} ({} hops)   <<<>>>   {} ({} hops)".format(
+                ' > '.join([str(s) for s in pathAB]), distanceAB,
+                ' > '.join([str(s) for s in pathBA]), distanceBA
+                ))
         print('')
 
 if(__name__ == '__main__'):
