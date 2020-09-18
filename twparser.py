@@ -376,7 +376,7 @@ def dbqueue_service(dbname):
                 try:
                     logStr = "dbqueue_service: {}({})".format(func.__name__, ', '.join([repr(x.groupdict()) for x in args]))
                 except:
-                    traceback.print_exc()
+                    # traceback.print_exc()
                     pass
                 log(1, logStr)
                 func(*args)
