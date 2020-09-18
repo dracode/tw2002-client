@@ -50,3 +50,9 @@ To compute paths using more options than the game typically supports, see `pytho
 
 Finally, if you are not using the `twclient.py` (if not, why not? ;)) you can parse play logs after the fact with twparser.py - see `python3 twparser.py -h` for more information.
 
+### Enabling Manual Settings
+
+To enable auto-haggling:
+
+    sqlite3 tw2002.db "insert into settings (key, value) values('auto_haggle', '1')"
+
