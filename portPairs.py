@@ -10,8 +10,6 @@ port_class_sales =   {1:'BBS', 2:'BSB', 3:'SBB', 4:'SSB', 5:'SBS', 6:'BSS', 7:'S
 
 DEFAULT_DB_NAME = 'tw2002.db'
 
-DIRECT = '  *** Direct warp available ***'
- 
 class Port:
     sector = None;
     port_class = None;
@@ -52,7 +50,7 @@ def port_score(portA, portB, port_type):
         amt_score += portA.equ_amt + portB.equ_amt
     return (pct_score, amt_score)
 
-def main(dbname, port_type_A, port_type_B, commissioned=False):
+def main(dbname, port_type_A, port_type_B, separation=1, commissioned=False):
     database = sqlite3.connect(dbname)
 
     ports = {}
@@ -76,10 +74,13 @@ def main(dbname, port_type_A, port_type_B, commissioned=False):
         if(starDock):
             fedSpace.append(starDock)
 
+    max_last_seen = ''
     # get a list of all ports
     for port in conn.execute('SELECT * FROM ports'):
         p = Port(port)
         ports[p.sector] = p
+        if(p.last_seen > max_last_seen):
+            max_last_seen = p.last_seen
 
     # find all the neighboring ports
     for sector in ports:
@@ -117,13 +118,14 @@ def main(dbname, port_type_A, port_type_B, commissioned=False):
             fRoute = None
             if(len(fighters)):
                 fRoute = [str(s) for s in twpath.dijkstra(p, fighters, reverse=True)[0]]
-            print(ports[p], end='')
-            if(fRoute is None):
-                print('')
-            elif(len(fRoute) > 1):
+            portStr = str(ports[p])
+            if(ports[p].last_seen < max_last_seen):
+                portStr += '\t(Not scanned since {})'.format(ports[p].last_seen)
+            if(fRoute and len(fRoute) == 1):
+                portStr += '\t *** Direct warp available ***'
+            print(portStr)
+            if(fRoute and len(fRoute) > 1):
                 print("\n\t\tRoute from nearest safe warp ({} hops):\t{}".format(len(fRoute)-1, ' > '.join(fRoute)))
-            else:
-                print(DIRECT)
             if(len(blind_warps)):
                 bRoute = [str(s) for s in twpath.dijkstra(p, blind_warps, reverse=True)[0]]
                 if(fRoute is None or len(bRoute) < len(fRoute)):
@@ -136,6 +138,7 @@ if(__name__ == '__main__'):
     parser.add_argument('--database', '-d', dest='db', default=DEFAULT_DB_NAME, help='SQLite database file to use; default "{}"'.format(DEFAULT_DB_NAME))
     parser.add_argument('--commissioned', '-c', action='store_true', help='If you have a Commission, FedSpace sectors will be factored in for the nearest safe warp location')
     parser.add_argument('--port-type', '-p', default="?BS", help='Specify a port type by listing desired commodities in the following order: Ore Org Equ, specifying Buy (B) Sell (S) or don\'t care (?).  e.g., "?S?" for a port that sells Organics.  Can specify both port types, if desired, e.g., "SBS-SSB".  Default: "?BS".')
+    parser.add_argument('--separation', '-s', type=int, default=1, help='How far apart the two ports can be; default 1 hop (adjacent sectors)')
 
     args = parser.parse_args()
     # print(args)
@@ -151,5 +154,5 @@ if(__name__ == '__main__'):
         else:
             raise argparse.ArgumentTypeError('Enter a 3 character code consisting only of "?", "B", or "S", e.g., "S?B" for a port that sells Fuel Ore and buys Equipment.  Optionally, enter two 3 character codes separated by a "-", e.g., "S?B-?SS".')
 
-    main(args.db, portA, portB, commissioned=args.commissioned)
+    main(args.db, portA, portB, separation=args.separation, commissioned=args.commissioned)
 
