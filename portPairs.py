@@ -41,13 +41,13 @@ def port_score(portA, portB, port_type):
     amt_score = 0
     if(port_type[0] != "?"):
         pct_score += portA.ore_pct + portB.ore_pct
-        amt_score += portA.ore_amt + portB.ore_amt
+        amt_score += min(portA.ore_amt, portB.ore_amt)
     if(port_type[1] != "?"):
         pct_score += portA.org_pct + portB.org_pct
-        amt_score += portA.org_amt + portB.org_amt
+        amt_score += min(portA.org_amt, portB.org_amt)
     if(port_type[2] != "?"):
         pct_score += portA.equ_pct + portB.equ_pct
-        amt_score += portA.equ_amt + portB.equ_amt
+        amt_score += min(portA.equ_amt, portB.equ_amt)
     return (pct_score, amt_score)
 
 def main(dbname, port_type_A, port_type_B, separation=1, commissioned=False):
