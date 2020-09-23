@@ -7,6 +7,8 @@ import queue
 database = None
 DEFAULT_DB_NAME = 'tw2002.db'
 
+DEFAULT_MAX_EXPLORED = 10
+
 explored = None
 
 def connect_database(filename):
@@ -99,9 +101,8 @@ class Sector:
         return "Sector({}, warps={}, path={})".format(self.sector, self.warps, self.path)
 
 MAX_WARPS = 20
-MAX_EXPLORED = 11
 
-def path_walker(start_vertex, end_vertices, avoids=[]):
+def path_walker(start_vertex, end_vertices, avoids=[], max_explored=DEFAULT_MAX_EXPLORED):
     explored = explored_sectors()
 
     if(end_vertices != None and not isinstance(end_vertices, list)):
@@ -122,7 +123,7 @@ def path_walker(start_vertex, end_vertices, avoids=[]):
         sector = lifo.get()
         if(sector.sector in avoids):
             continue
-        if(explored_cnt(sector.path) > MAX_EXPLORED):
+        if(explored_cnt(sector.path) > max_explored):
             maxExplored += 1
             continue
         if(len(sector.path) > MAX_WARPS):
@@ -164,7 +165,7 @@ def path_walker(start_vertex, end_vertices, avoids=[]):
 
 # inspired by http://pythonfiddle.com/dijkstra/
 # modified to use a weighted algorithm
-def weighted_dijkstra(start_vertex, end_vertices, avoids=[]):
+def weighted_dijkstra(start_vertex, end_vertices, avoids=[], max_explored=None):
     
     explored = explored_sectors()
 
@@ -250,7 +251,7 @@ def unexplored_cnt(route):
 if(__name__ == '__main__'):
     parser = argparse.ArgumentParser(description='Tool that will attempt to plan an Ether Probe path to an Unexplored dead end that will hit as many Unexplored sectors as possible en route.')
     parser.add_argument('--database', '-d', dest='db', default=DEFAULT_DB_NAME, help='SQLite database file to use; default "{}"'.format(DEFAULT_DB_NAME))
-    parser.add_argument('--thorough', '-t', action='store_true', help='Switch to a more thorough algorithm.  Will likely generate longer paths and find more Unexplored sectors along the route, but is MUCH SLOWER to run')
+    parser.add_argument('--thorough', '-t', type=int, default=-1, nargs='?', help='Switch to a more thorough algorithm.  Will likely generate longer paths and find more Unexplored sectors along the route, but is MUCH SLOWER to run.  Add a max number of explored sectors before a route is discarded; default {}.  Higher numbers could generate better paths, but increase the time needed to run the algorithm exponentially!'.format(DEFAULT_MAX_EXPLORED))
     parser.add_argument('--top', type=int, default=1, help='Show the top <X> probe destination/routes; default 1')
     parser.add_argument('--all', '-a', action='store_true', help='Treat every sector as a destination, not just Unexplored dead ends')
     parser.add_argument('--avoid', '-v', type=int, nargs='+', default=[], help='Sectors to avoid when plotting probe routes')
@@ -265,7 +266,9 @@ if(__name__ == '__main__'):
         max_route_len = float('inf')
 
     mapping_algo = weighted_dijkstra
-    if(args.thorough):
+    if(args.thorough is None):
+        args.thorough = DEFAULT_MAX_EXPLORED
+    if(args.thorough > 0):
         mapping_algo = path_walker
 
     connect_database(args.db)
@@ -291,7 +294,7 @@ if(__name__ == '__main__'):
 
     routes = []
     for source in args.start_sector:
-        routes += mapping_algo(source, candidates, avoids=args.avoid)
+        routes += mapping_algo(source, candidates, avoids=args.avoid, max_explored=args.thorough)
     # print(routes)
 
     buckets = {}
