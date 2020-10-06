@@ -46,14 +46,14 @@ def connect(host, port):
         ip = socket.gethostbyname(host)
     except:
         print("telnet: could not resolve {}/{}: Name or service not known".format(host, port), file=sys.stderr)
-        return 1
+        return None
 
     print('Trying {}...'.format(ip))
     try:
         tn = telnetlib.Telnet(host, port)
     except:
         print("telnet: Unable to connect to remote host: Connection timed out", file=sys.stderr)
-        return 2
+        return None
     print('Connected to {}.'.format(host))
 
     return tn
