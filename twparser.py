@@ -8,6 +8,7 @@ import threading
 from multiprocessing.pool import ThreadPool
 import traceback
 import sys
+import math
 
 # variable for collating the multi-line output of route planning commands
 routeList = None
@@ -23,6 +24,7 @@ settings = {}
 verbose = 0
 
 class PortStatus:
+    source = None
     operation = None
     prev_their_offer = None
     prev_our_offer = None
@@ -62,9 +64,9 @@ saveFightersRe = re.compile("^ (?P<sector>[0-9 ]{4}[0-9])\s+[0-9]+\s+(?:Personal
 planetListRe = re.compile("^\s*(?P<sector>[0-9 ]{4}[0-9])\s+T?\s+#(?P<id>[0-9]+)\s+(?P<name>.*?)\s+Class (?P<class>[A-Z]), .*(?P<citadel>No Citadel|Level [0-9])")
 
 # auto-haggle triggers
-portOperationRe = re.compile("^How many holds of .+ do you want to (?P<operation>buy|sell) \[[0-9,]+\]\?")
+portOperationRe = re.compile("^How many (?P<planetOrShip>units|holds) of .+ do you want to (?P<operation>buy|sell) \[[0-9,]+\]\?")
 portFinalOfferRe = re.compile("^Our final offer is [0-9,]+ credits.$")
-portPromptRe = re.compile(r"^Your offer \[(?P<offer>[0-9,]+)\] \?$")
+portPromptRe = re.compile(r"^Your offer \[(?P<offer>[0-9,]+)\]\s{0,1}\?$")
 
 # game information
 maxSectorRe = re.compile("^\s+Maximum players [0-9]+, sectors (?P<maxSector>[0-9,]+), ports [0-9,]+, planets [0-9,]+\.")
@@ -230,10 +232,14 @@ def parse_partial_line(line):
     portPrompt = portPromptRe.match(strippedLine)
     if(portPrompt):
         their_offer = int(portPrompt.group('offer').replace(',',''))
+        log(1, portPrompt)
         our_offer = their_offer
         if(port_status.prev_their_offer == None):
             if(port_status.operation == 'sell'):
-                our_offer *= 1.07
+                if(port_status.source == 'planet'):
+                    our_offer = math.ceil(our_offer / 0.94) - 1
+                else:
+                    our_offer *= 1.07
             else:
                 our_offer *= 0.95
         elif(their_offer == port_status.prev_their_offer):
@@ -285,6 +291,8 @@ def parse_complete_line(line):
     portOperation = portOperationRe.match(strippedLine)
     if(portOperation):
         log(2, "portOperation: {}".format(portOperation))
+        if(portOperation.group('planetOrShip') == 'units'):
+            port_status.source = 'planet'
         port_status.operation = portOperation.group('operation')
         port_status.prev_their_offer = None
         return
