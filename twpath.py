@@ -49,11 +49,16 @@ def deadend_search(avoids=[]):
     global database
     conn = database.cursor()
     query = conn.execute('''
-        SELECT sector, count(sector)
-        FROM warps, explored
-        WHERE warps.destination = explored.sector
-        GROUP BY sector
-        HAVING count(sector)=1''')
+        SELECT source AS sector
+        FROM warps
+        GROUP BY source
+        HAVING count(*)=1
+        INTERSECT
+        SELECT destination AS sector
+        FROM warps
+        GROUP BY destination
+        HAVING count(*)=1
+        ''')
     retval = [int(sector[0]) for sector in query]
     retval = filter(lambda p: p not in avoids, retval)
     conn.close()
