@@ -42,6 +42,11 @@ QUITTING_TIME = False
 port_class_numbers = {'BBS':1, 'BSB':2, 'SBB':3, 'SSB':4, 'SBS':5, 'BSS':6, 'SSS':7, 'BBB':8}
 port_class_sales =   {1:'BBS', 2:'BSB', 3:'SBB', 4:'SSB', 5:'SBS', 6:'BSS', 7:'SSS', 8:'BBB'}
 
+# auto-login for twgs
+bbsNameEntryRe = re.compile("^Please enter your name \(ENTER for none\):")
+gameSelectRe = re.compile("^Selection \(\? for menu\):")
+gamePassRe = re.compile("^This is a private game.  Please enter a password:")
+
 # pattern matching the port list from Computer Interrogation Mode (CIM)
 portListRe = re.compile('^(?P<sector>[ 0-9]{3}[0-9]) (?P<ore_bs>[ -]) (?P<ore_amt>[ 0-9]{3}[0-9]) (?P<ore_pct>[ 0-9]{2}[0-9])% (?P<org_bs>[ -]) (?P<org_amt>[ 0-9]{3}[0-9]) (?P<org_pct>[ 0-9]{2}[0-9])% (?P<equ_bs>[ -]) (?P<equ_amt>[ 0-9]{3}[0-9]) (?P<equ_pct>[ 0-9]{2}[0-9])%$')
 
@@ -259,6 +264,24 @@ def parse_partial_line(line):
         port_status.prev_our_offer = our_offer
         port_status.final_offer = False
         return('{}'.format(int(our_offer)).encode('utf-8'))
+
+    bbsNameEntry = bbsNameEntryRe.match(strippedLine)
+    if(bbsNameEntry and 'twgs_name' in settings):
+        val = settings['twgs_name']
+        del settings['twgs_name']
+        return('{}'.format(val).encode('utf-8'))
+
+    gameSelect = gameSelectRe.match(strippedLine)
+    if(gameSelect and 'twgs_game' in settings):
+        val = settings['twgs_game']
+        del settings['twgs_game']
+        return('{}'.format(val).encode('utf-8'))
+
+    gamePass = gamePassRe.match(strippedLine)
+    if(gamePass and 'twgs_game_pass' in settings):
+        val = settings['twgs_game_pass']
+        del settings['twgs_game_pass']
+        return('{}'.format(val).encode('utf-8'))
 
 def parse_complete_line(line):
     global routeList

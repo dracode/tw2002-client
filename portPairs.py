@@ -50,7 +50,7 @@ def port_score(portA, portB, port_type):
         amt_score += min(portA.equ_amt, portB.equ_amt)
     return (pct_score, amt_score)
 
-def main(dbname, port_type_A, port_type_B, separation=1, commissioned=False):
+def main(dbname, port_type_A, port_type_B, separation=1, start=None, commissioned=False):
     database = sqlite3.connect(dbname)
 
     ports = {}
@@ -132,6 +132,8 @@ def main(dbname, port_type_A, port_type_B, separation=1, commissioned=False):
     fighters = twpath.fighter_locations()
     if(commissioned):
         fighters += fedSpace
+    if(start!=None):
+        fighters.append(start)
 
     blind_warps = twpath.blind_warps()
 
@@ -172,6 +174,7 @@ if(__name__ == '__main__'):
     parser.add_argument('--commissioned', '-c', action='store_true', help='If you have a Commission, FedSpace sectors will be factored in for the nearest safe warp location')
     parser.add_argument('--port-type', '-p', default="?BS", help='Specify a port type by listing desired commodities in the following order: Ore Org Equ, specifying Buy (B) Sell (S) or don\'t care (?).  e.g., "?S?" for a port that sells Organics.  Can specify both port types, if desired, e.g., "SBS-SSB".  Default: "?BS".')
     parser.add_argument('--separation', '-s', type=int, default=1, help='How far apart the two ports can be; default 1 hop (adjacent sectors)')
+    parser.add_argument('start', type=int, nargs='?', help='Optional starting sector for the route calculation')
 
     args = parser.parse_args()
     # print(args)
@@ -187,5 +190,5 @@ if(__name__ == '__main__'):
         else:
             raise argparse.ArgumentTypeError('Enter a 3 character code consisting only of "?", "B", or "S", e.g., "S?B" for a port that sells Fuel Ore and buys Equipment.  Optionally, enter two 3 character codes separated by a "-", e.g., "S?B-?SS".')
 
-    main(args.db, portA, portB, separation=args.separation, commissioned=args.commissioned)
+    main(args.db, portA, portB, separation=args.separation, start=args.start, commissioned=args.commissioned)
 

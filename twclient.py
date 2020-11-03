@@ -185,6 +185,9 @@ if(__name__ == '__main__'):
     try:
         parser = argparse.ArgumentParser(description='A telnet emulator client for playing TW2002.  This client will database ports, warps, and the locations of your fighters and planets for use with analytical tools.')
         parser.add_argument('--database', '-d', dest='db', default=DEFAULT_DB_NAME, help='SQLite database file to use; default "{}"'.format(DEFAULT_DB_NAME))
+        parser.add_argument('--twgs-name', '-n', dest='twgs_name', help='Optional TWGS BBS Username to input')
+        parser.add_argument('--twgs-game', '-g', dest='twgs_game', help='Optional TWGS game to select')
+        parser.add_argument('--twgs-game-pass', '-p', dest='twgs_game_pass', help='Optional TWGS game password to input')
         parser.add_argument('host', help='Hostname or IP address of the game server.')
         parser.add_argument('port', help='Port where the game is running.')
 
@@ -203,6 +206,13 @@ if(__name__ == '__main__'):
         settings['auto_haggle'] = not not int(settings['auto_haggle'])
 
         settings['mute'] = False
+
+        if(args.twgs_name):
+            settings['twgs_name'] = args.twgs_name
+        if(args.twgs_game):
+            settings['twgs_game'] = args.twgs_game
+        if(args.twgs_game_pass):
+            settings['twgs_game_pass'] = args.twgs_game_pass
 
         telnetConnection = connect(args.host, args.port)
         # telnetConnection = None
