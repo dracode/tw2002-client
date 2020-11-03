@@ -139,15 +139,13 @@ def interactive_session(tn):
                         
 def do_ztm(tn):
     tn.write(b'QQQQQQQQNV^')
+    time.sleep(5) # give time for the 'V' to complete and be parsed, so we know what the max_sector is
     for x in range(2, settings['max_sector']+1):
-        cmd = 'F{}\r\n{}\r\n'.format(1, x)
-        tn.write(cmd.encode('utf-8'))
-        time.sleep(0.2)
-        cmd = 'F{}\r\n{}\r\n'.format(x, 1)
-        tn.write(cmd.encode('utf-8'))
-        time.sleep(0.2)
-        cmd = 'F{}\r\n{}\r\n'.format(x-1, x)
-        tn.write(cmd.encode('utf-8'))
+        for (a,b) in [(1,x), (x,1), (x-1,x)]:
+            twparser.route_saved.clear()
+            cmd = 'F{}\r\n{}\r\n'.format(a, b)
+            tn.write(cmd.encode('utf-8'))
+            twparser.route_saved.wait()
     tn.write(b'Q')
 
 def do_update(tn):

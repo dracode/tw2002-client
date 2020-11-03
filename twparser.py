@@ -26,12 +26,15 @@ verbose = 0
 class PortStatus:
     source = None
     operation = None
+    units = None
     prev_their_offer = None
     prev_our_offer = None
     final_offer = False
 
 port_status = PortStatus()
 
+# synchronizer, so the ZTM algorithm can know when the last route was processed and it can move on to the next
+route_saved = threading.Event()
 
 # sync flag for threads to exit
 QUITTING_TIME = False
@@ -65,6 +68,7 @@ planetListRe = re.compile("^\s*(?P<sector>[0-9 ]{4}[0-9])\s+T?\s+#(?P<id>[0-9]+)
 
 # auto-haggle triggers
 portOperationRe = re.compile("^How many (?P<planetOrShip>units|holds) of .+ do you want to (?P<operation>buy|sell) \[[0-9,]+\]\?")
+portUnitsRe = re.compile("Agreed, (?P<units>[0-9]+) units.")
 portFinalOfferRe = re.compile("^Our final offer is [0-9,]+ credits.$")
 portPromptRe = re.compile(r"^Your offer \[(?P<offer>[0-9,]+)\]\s{0,1}\?$")
 
@@ -297,6 +301,12 @@ def parse_complete_line(line):
         port_status.prev_their_offer = None
         return
 
+    portUnits = portUnitsRe.match(strippedLine)
+    if(portUnits):
+        log(2, "portUnits: {}".format(portUnits))
+        port_status.units = int(portUnits.group('units'))
+        return
+
     portFinalOffer = portFinalOfferRe.match(strippedLine)
     if(portFinalOffer):
         log(2, "portFinalOffer: {}".format(portFinalOffer))
@@ -349,10 +359,12 @@ def parse_complete_line(line):
     routeListComplete = routeListCompleteCIMRe.match(strippedLine)
     if(routeListComplete):
         save_route_list(routeListComplete)
+        route_saved.set()
         return
     routeListComplete = routeListCompleteCFRe.match(strippedLine)
     if(routeListComplete):
         save_route_list(routeListComplete)
+        route_saved.set()
         return
  
     # route listings are multi-line.  accumulate the lines, then we'll process it once it's complete
@@ -375,7 +387,8 @@ def dbqueue_service(dbname):
 
     database = sqlite3.connect(dbname)
 
-    didWork = False
+    doFlash = False
+    didWork = 0
     while(True):
         try:
             func, *args = dbqueue.get(block=False)
@@ -396,13 +409,21 @@ def dbqueue_service(dbname):
             if(didWork):
                 if(didWork > 1):
                     # if we had a queue, flash the screen to indicate that all database operations are complete
-                    print("\x1b[?5h\x1b[?5l", flush=True, end='')
+                    doFlash = True
                 didWork = 0
             if(QUITTING_TIME):
                 break
             time.sleep(1)
         except Exception:
             traceback.print_exc()
+        if(doFlash):
+            try:
+                # flash
+                print("\x1b[?5h\x1b[?5l", flush=True, end='')
+            except:
+                pass
+            doFlash = False
+
 
 def dbqueue_monitor():
     global dbqueue
